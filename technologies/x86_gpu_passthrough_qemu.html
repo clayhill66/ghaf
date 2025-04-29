@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Compartmentalization - Ghaf Framework</title>
+        <title>x86: GPU Passthrough with qemu - Ghaf Framework</title>
 
 
         <!-- Custom HTML head -->
@@ -226,25 +226,83 @@
 
 </style>
 <!--
-    Copyright 2022-2024 TII (SSRC) and the Ghaf contributors
+    Copyright 2025 TII (SSRC) and the Ghaf contributors
     SPDX-License-Identifier: CC-BY-SA-4.0
 -->
-<h1 id="compartmentalization"><a class="header" href="#compartmentalization">Compartmentalization</a></h1>
-<p>Compartmentalization is the technique of separating parts of a system to decrease attack surface and prevent malfunctions from cascading in the system. In Ghaf architecture, there is a separate VM for every vital function of the system.</p>
-<p>Current implementation supports GUI VM, <a href="../architecture/adr/netvm.html">Networking VM</a> and a couple of Application VMs, such as the Chromium web browser and the Zathura document viewer.</p>
-<p>The GUI VM owns a computer's GPU and performs desktop environment and application windows rendering. Wayland protocol for applications in this case is proxified by <code>waypipe</code> over SSH. This approach is used temporarily before moving to more sophisticated solutions.</p>
-<p>A VM compartmentalization requires all necessary devices passthrough in place. More specifically, you need to know the PCI VID and PID of a device and also its number on the PCI bus. In the case of a USB device passthrough, it is enough to know the device's VID and PID.</p>
-<p>For more information on actual implementation, see <a href="../ref_impl/ghaf-based-project.html">Ghaf as Library</a> and <a href="../ref_impl/creating_appvm.html">Creating Application VM</a>.</p>
+<h1 id="x86-gpu-device-passthrough-with-qemu"><a class="header" href="#x86-gpu-device-passthrough-with-qemu">x86 GPU Device Passthrough with Qemu</a></h1>
+<h3 id="overview"><a class="header" href="#overview">Overview</a></h3>
+<ul>
+<li>GPU passthrough allows a virtual machine (VM) to use a dedicated GPU, enabling near-native performance for 3D workloads, media decoding/encoding and other GPU-intensive tasks.</li>
+<li>QEMU combined with libvirt is a common stack used for this on Linux.</li>
+</ul>
+<h3 id="1-requirements"><a class="header" href="#1-requirements">1. Requirements</a></h3>
+<p><strong>Hardware</strong></p>
+<ul>
+<li>CPU with IOMMU support:
+<ul>
+<li>Intel VT-d (Intel IOMMU)</li>
+<li>AMD-Vi (AMD)</li>
+</ul>
+</li>
+</ul>
+<h3 id="2-enable-iommu-in-the-bootloader"><a class="header" href="#2-enable-iommu-in-the-bootloader">2. Enable IOMMU in the Bootloader</a></h3>
+<ul>
+<li>
+<p>Make sure following parameters added to kernel command line.</p>
+<pre><code class="language-sh"># For Intel CPUs
+"intel_iommu=on"
+
+# For AMD CPUs
+"amd_iommu=on"
+</code></pre>
+</li>
+</ul>
+<h3 id="3-identify-the-gpu"><a class="header" href="#3-identify-the-gpu">3. Identify the GPU</a></h3>
+<ul>
+<li>
+<p>List devices</p>
+<pre><code class="language-sh">lspci -nn
+</code></pre>
+</li>
+</ul>
+<h3 id="4-isolate-gpu-with-vfio"><a class="header" href="#4-isolate-gpu-with-vfio">4. Isolate GPU with VFIO</a></h3>
+<ul>
+<li>Blacklist the GPU driver on the host system so it won't be used. Example
+<pre><code class="language-sh"># For Intel GPUs
+"module_blacklist=i915,xe"
+</code></pre>
+</li>
+<li>Bind Devices to VFIO
+<pre><code class="language-sh">options vfio-pci.ids=&lt;VendorId&gt;:&lt;DeviceId&gt;
+</code></pre>
+</li>
+</ul>
+<h3 id="5-verify-gpu-passthrough-works-in-qemu"><a class="header" href="#5-verify-gpu-passthrough-works-in-qemu">5. Verify GPU Passthrough Works in QEMU</a></h3>
+<p>On Graphics VM (<code>gui-vm</code>) run the following commands.</p>
+<ul>
+<li>
+<p>To verifiy PCI device passthrough:</p>
+<pre><code class="language-sh">lspci | grep VGA
+</code></pre>
+</li>
+<li>
+<p>Check the driver:</p>
+<pre><code class="language-sh">$ lshw -c display
+</code></pre>
+</li>
+</ul>
+<h3 id="limitation"><a class="header" href="#limitation">Limitation</a></h3>
+<p>With GPU passthrough to a specific VM, the GPU cannot be used for other VMs. However, sometimes we may need the GPU to be shared across different VMs, which is not possible with the current implementation.</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../technologies/technologies.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../technologies/device_tree_overlays_pt.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <i class="fa fa-angle-left"></i>
                             </a>
 
-                            <a rel="next prefetch" href="../technologies/passthrough.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../technologies/nvidia_virtualization_bpmp.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
 
@@ -254,11 +312,11 @@
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../technologies/technologies.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../technologies/device_tree_overlays_pt.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <i class="fa fa-angle-left"></i>
                     </a>
 
-                    <a rel="next prefetch" href="../technologies/passthrough.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../technologies/nvidia_virtualization_bpmp.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
             </nav>
